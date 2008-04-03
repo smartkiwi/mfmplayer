@@ -1,0 +1,214 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:Application xmlns:mx="http://www.adobe.com/2006/mxml" layout="absolute" backgroundColor="#FFFFFF" backgroundAlpha="0" creationComplete="handle_activate()">
+	<mx:HTTPService id="xml_rpc" url="http://www.moskva.fm/player_xml.html" result="handle_xml(event)" fault="handle_fault(event)" resultFormat="e4x"/>
+	<mx:Script>
+		<![CDATA[
+			import mx.messaging.channels.StreamingAMFChannel; 
+		import mx.collections.ArrayCollection;
+		import mx.rpc.events.ResultEvent;
+		import mx.rpc.events.FaultEvent;
+		import mx.controls.Alert;
+		import mx.events.ListEvent;
+		
+		import flash.events.Event;
+
+		include 'play.as';
+	
+		private var cursorID:Number = 0;
+
+        import mx.managers.CursorManager;
+        import mx.managers.CursorManagerPriority;
+
+		[Bindable]
+		private var songsFeed:ArrayCollection = new ArrayCollection();
+		public var xml:XML = new XML( );
+		public var startime:int = 1206538368;;
+
+
+		public function handle_activate():void
+		{
+			startime = 1206538300-1800;
+			//startime = 1206545568;
+			Stime.text = startime.toString();
+			handle_click(0);
+			
+		}
+		
+		public function handle_click(s:int):void
+		{
+             cursorID=CursorManager.setCursor(StyleManager.getStyleDeclaration("CursorManager").getStyle("busyCursor"),CursorManagerPriority.HIGH);
+             statuslable.visible = true;			
+			//xml_rpc.request.time = startime;
+			startime=startime+s*3600;
+			Stime.text=startime.toString();			
+			xml_rpc.cancel();
+			var params:Object = new Object();
+			params.time = startime;
+			params.station = "2003";
+			params.rnd = 12312;
+			xml_rpc.send(params);			
+		}
+		
+		
+		
+		public function handle_xml(event:ResultEvent):void
+		{
+			
+			xml = XML(event.result);
+			// set the default XML namespace
+			if (xml.namespace("") != undefined)
+			{
+				default xml namespace = xml.namespace("");
+			}			
+			//shipping_options.text = event.result.toString();
+			
+			songsFeed = new ArrayCollection();
+            
+            //shipping_options_grid.dataProvider = xml_rpc.lastResult.data.tracks;
+
+			for each (var trackinfo:XML in xml..track.trackinfo)
+			{
+				songsFeed.addItem(trackinfo);				
+//				shipping_options.text = trackinfo.artistname.toString( ) + " " + trackinfo.trackname.toString( );
+			}
+			
+			shipping_options_grid.dataProvider = xml..track.trackinfo;			
+             			
+			//myResult = XML( event.result );
+			//shipping_options_grid.dataProvider = event.result;
+			CursorManager.removeCursor(cursorID);
+			statuslable.visible = false;						
+		}
+		
+		public function handle_fault(event:FaultEvent):void
+		{
+			Alert.show(event.fault.faultString, "Error");
+		}
+
+		public function handle_column_click(event:ListEvent):void
+		{
+			//Alert.show(event.rowIndex.toString() + songsFeed.getItemAt(event.rowIndex));
+			
+			sounds = new ArrayCollection();
+			sounds_position = 0;
+			
+			var songurl:String = songsFeed.getItemAt(event.rowIndex).time;
+			var p:Array = songurl.split(":");
+			songurl = "http://www.moskva.fm/files/2003/"+p[0]+"/"+p[1]+"/"+p[2]+"/"+p[3]+p[4]+".mp3";
+			//Alert.show(songurl);
+			songtitle.text = songurl+" "+p[5]+" sec";
+			var songslist:ArrayCollection = new ArrayCollection();
+			songslist.addItem("http://www.moskva.fm/files/2003/"+p[0]+"/"+p[1]+"/"+p[2]+"/"+p[3]+p[4]+".mp3");
+			songslist.addItem("http://www.moskva.fm/files/2003/"+p[0]+"/"+p[1]+"/"+p[2]+"/"+p[3]+(int(p[4])+1)+".mp3");
+			songslist.addItem("http://www.moskva.fm/files/2003/"+p[0]+"/"+p[1]+"/"+p[2]+"/"+p[3]+(int(p[4])+2)+".mp3");
+			songslist.addItem("http://www.moskva.fm/files/2003/"+p[0]+"/"+p[1]+"/"+p[2]+"/"+p[3]+(int(p[4])+3)+".mp3");
+			songslist.addItem("http://www.moskva.fm/files/2003/"+p[0]+"/"+p[1]+"/"+p[2]+"/"+p[3]+(int(p[4])+4)+".mp3");
+			//Alert.show(songslist.toString());
+			PlayTunes(songslist,p[5]);
+			
+		}		
+		
+			import flash.media.Sound;
+			import flash.media.SoundChannel;
+			import flash.net.URLRequest;
+			private var channelNow:SoundChannel;
+			private var soundMedia:Sound;
+
+
+		public var sounds_position:int = 0;
+		
+		private function onPlaybackComplete(event:Event):void
+		{
+			positionp.text="playing "+ (sounds_position+1) ;
+			
+			if ( sounds_position < sounds.length)
+			{
+				sounds_position=sounds_position+1;
+				positionp.text="playing "+ (sounds_position+1) + " from " + sounds.length ;
+				channelNow=sounds.getItemAt(sounds_position).play(1000);
+				channelNow.addEventListener(Event.SOUND_COMPLETE, onPlaybackComplete);								
+			}
+			//positionp.text="The all sounds has finished playing.";
+		}			
+			public var sounds:ArrayCollection = new ArrayCollection();
+			
+			
+			public function PlayTune(url:String,pos:int):void
+			{
+				var playMe:URLRequest=new URLRequest(url);
+				soundMedia=new Sound( );
+				soundMedia.load(playMe);
+				if (channelNow != null)
+				{
+					channelNow.stop();
+				}
+
+				channelNow=soundMedia.play( pos*1000);
+//				addEventListener(Event.ENTER_FRAME, onEnterFrame);
+				
+			}
+
+			public function PlayTunes(songs:ArrayCollection,pos:int):void
+			{	
+				sounds_position = 0;
+				sounds = new ArrayCollection();
+				if (channelNow != null)
+				{
+					channelNow.stop();
+				}
+
+				//Alert.show("songs "+songs.length.toString());
+				for (var songi:int=0;songi<songs.length;songi++)
+				{
+					var song:String = songs[songi];
+					//positionp.text = song;
+					var playMe:URLRequest=new URLRequest(song);
+					var soundMedia:Sound =new Sound( );
+					soundMedia.load(playMe);
+					sounds.addItem(soundMedia);
+					if (songi==0)
+					{
+						channelNow=sounds.getItemAt(0).play( pos*1000);
+						positionp.text="playing "+ (sounds_position+1) ;
+					}					
+				}
+				//Alert.show("sounds "+sounds.length.toString());
+				
+
+								
+				channelNow.addEventListener(Event.SOUND_COMPLETE, onPlaybackComplete);
+				
+			}
+
+
+		public function handle_play():void
+		{
+			
+			//PlayTune("http://www.moskva.fm/files/4014/2008/03/26/1619.mp3");
+		}	
+		
+		
+		]]> 
+	</mx:Script>
+
+	
+
+	<mx:Label x="56" y="30" text="Time" width="55" height="18" textAlign="right" fontWeight="bold"/>
+
+	<mx:TextInput id="Stime" x="130" y="30" width="160" height="22"/>
+	<mx:Button x="155" y="67" label="+1 hour" click="handle_click(+1)" width="81" height="22"/>
+	<mx:Button x="80" y="67" label="-1 hour" click="handle_click(-1)" width="67" height="22"/>
+	<mx:DataGrid id="shipping_options_grid" x="56" y="97" width="862" height="481" itemClick="handle_column_click(event);" editable="false" enabled="true">
+		<mx:columns>
+			<mx:DataGridColumn headerText="Artist" dataField="artistname"/>
+			<mx:DataGridColumn headerText="Track" dataField="trackname"/>
+			<mx:DataGridColumn headerText="duration" dataField="duration"/>
+			<mx:DataGridColumn headerText="time" dataField="time"/>
+		</mx:columns>	
+	</mx:DataGrid>
+	<mx:Label id="statuslable" x="312" y="32" text="Loading ..." enabled="false"/>
+	<mx:Button x="244" y="67" id="play" label="Play" click="handle_play();" enabled="true"/>
+	<mx:Label x="56" y="586" width="598" id="songtitle"/>
+	<mx:Label x="56" y="601" id="positionp" width="598"/>
+	
+</mx:Application>
